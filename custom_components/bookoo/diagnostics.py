@@ -16,16 +16,25 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
     coordinator = entry.runtime_data
-    scale = coordinator.scale
 
-    # collect all data sources
+    if coordinator.scale is not None:
+        scale = coordinator.scale
+        return {
+            "model": scale.model,
+            "device_state": (
+                asdict(scale.device_state) if scale.device_state is not None else ""
+            ),
+            "mac": scale.mac,
+            "last_disconnect_time": scale.last_disconnect_time,
+            "timer": scale.timer,
+            "weight": scale.weight,
+        }
+
+    monitor = coordinator.monitor
     return {
-        "model": scale.model,
-        "device_state": (
-            asdict(scale.device_state) if scale.device_state is not None else ""
-        ),
-        "mac": scale.mac,
-        "last_disconnect_time": scale.last_disconnect_time,
-        "timer": scale.timer,
-        "weight": scale.weight,
+        "model": monitor.model,
+        "mac": monitor.mac,
+        "last_disconnect_time": monitor.last_disconnect_time,
+        "pressure": monitor.pressure,
+        "battery": monitor.battery,
     }

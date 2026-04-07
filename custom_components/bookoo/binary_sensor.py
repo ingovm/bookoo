@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from aiobookoo.bookooscale import BookooScale
+from aiobookoo.bookoomonitor import BookooEspressoMonitor
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -24,7 +25,7 @@ PARALLEL_UPDATES = 0
 class BookooBinarySensorEntityDescription(BinarySensorEntityDescription):
     """Description for Bookoo binary sensor entities."""
 
-    is_on_fn: Callable[[BookooScale], bool]
+    is_on_fn: Callable[[BookooScale | BookooEspressoMonitor], bool]
 
 
 BINARY_SENSORS: tuple[BookooBinarySensorEntityDescription, ...] = (

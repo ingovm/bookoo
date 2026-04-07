@@ -4,6 +4,7 @@ from collections.abc import Callable  # noqa: I001
 from dataclasses import dataclass
 
 from aiobookoo.bookooscale import BookooDeviceState, BookooScale
+from aiobookoo.bookoomonitor import BookooEspressoMonitor
 from aiobookoo.const import UnitMass as BookooUnitOfMass
 from homeassistant.components.sensor import (
     RestoreSensor,
@@ -13,7 +14,7 @@ from homeassistant.components.sensor import (
     SensorExtraStoredData,
     SensorStateClass,
 )
-from homeassistant.const import PERCENTAGE, UnitOfMass, UnitOfVolumeFlowRate, UnitOfTime
+from homeassistant.const import PERCENTAGE, UnitOfMass, UnitOfPressure, UnitOfVolumeFlowRate, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -28,7 +29,7 @@ PARALLEL_UPDATES = 0
 class BookooSensorEntityDescription(SensorEntityDescription):
     """Description for Bookoo sensor entities."""
 
-    value_fn: Callable[[BookooScale], int | float | None]
+    value_fn: Callable[[BookooScale | BookooEspressoMonitor], int | float | None]
 
 
 @dataclass(kw_only=True, frozen=True)
@@ -38,13 +39,13 @@ class BookooDynamicUnitSensorEntityDescription(BookooSensorEntityDescription):
     unit_fn: Callable[[BookooDeviceState], str] | None = None
 
 
-SENSORS: tuple[BookooSensorEntityDescription, ...] = (
+SCALE_SENSORS: tuple[BookooSensorEntityDescription, ...] = (
     BookooDynamicUnitSensorEntityDescription(
         key="weight",
         device_class=SensorDeviceClass.WEIGHT,
         native_unit_of_measurement=UnitOfMass.GRAMS,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda scale: scale.weight,
+        value_fn=lambda device: device.weight,
     ),
     BookooDynamicUnitSensorEntityDescription(
         key="flow_rate",
@@ -52,7 +53,7 @@ SENSORS: tuple[BookooSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfVolumeFlowRate.MILLILITERS_PER_SECOND,
         suggested_display_precision=1,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda scale: scale.flow_rate,
+        value_fn=lambda device: device.flow_rate,
     ),
     BookooDynamicUnitSensorEntityDescription(
         key="timer",
@@ -60,18 +61,40 @@ SENSORS: tuple[BookooSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfTime.SECONDS,
         suggested_display_precision=2,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda scale: scale.timer,
+        value_fn=lambda device: device.timer,
     ),
 )
-RESTORE_SENSORS: tuple[BookooSensorEntityDescription, ...] = (
+
+SCALE_RESTORE_SENSORS: tuple[BookooSensorEntityDescription, ...] = (
     BookooSensorEntityDescription(
         key="battery",
         device_class=SensorDeviceClass.BATTERY,
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda scale: (
-            scale.device_state.battery_level if scale.device_state else None
+        value_fn=lambda device: (
+            device.device_state.battery_level if device.device_state else None
         ),
+    ),
+)
+
+MONITOR_SENSORS: tuple[BookooSensorEntityDescription, ...] = (
+    BookooSensorEntityDescription(
+        key="pressure",
+        device_class=SensorDeviceClass.PRESSURE,
+        native_unit_of_measurement=UnitOfPressure.BAR,
+        suggested_display_precision=2,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda device: device.pressure,
+    ),
+)
+
+MONITOR_RESTORE_SENSORS: tuple[BookooSensorEntityDescription, ...] = (
+    BookooSensorEntityDescription(
+        key="battery",
+        device_class=SensorDeviceClass.BATTERY,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda device: device.battery,
     ),
 )
 
@@ -84,18 +107,30 @@ async def async_setup_entry(
     """Set up sensors."""
 
     coordinator = entry.runtime_data
-    entities: list[SensorEntity] = [
-        BookooSensor(coordinator, entity_description) for entity_description in SENSORS
-    ]
-    entities.extend(
-        BookooRestoreSensor(coordinator, entity_description)
-        for entity_description in RESTORE_SENSORS
-    )
+    entities: list[SensorEntity] = []
+
+    if coordinator.scale is not None:
+        entities.extend(
+            BookooSensor(coordinator, description) for description in SCALE_SENSORS
+        )
+        entities.extend(
+            BookooRestoreSensor(coordinator, description)
+            for description in SCALE_RESTORE_SENSORS
+        )
+    else:
+        entities.extend(
+            BookooSensor(coordinator, description) for description in MONITOR_SENSORS
+        )
+        entities.extend(
+            BookooRestoreSensor(coordinator, description)
+            for description in MONITOR_RESTORE_SENSORS
+        )
+
     async_add_entities(entities)
 
 
 class BookooSensor(BookooEntity, SensorEntity):
-    """Representation of an Bookoo sensor."""
+    """Representation of a Bookoo sensor."""
 
     entity_description: BookooDynamicUnitSensorEntityDescription
 
@@ -103,7 +138,9 @@ class BookooSensor(BookooEntity, SensorEntity):
     def native_unit_of_measurement(self) -> str | None:
         """Return the unit of measurement of this entity."""
         if (
-            self._scale.device_state is not None
+            isinstance(self._scale, BookooScale)
+            and self._scale.device_state is not None
+            and isinstance(self.entity_description, BookooDynamicUnitSensorEntityDescription)
             and self.entity_description.unit_fn is not None
         ):
             return self.entity_description.unit_fn(self._scale.device_state)
@@ -116,7 +153,7 @@ class BookooSensor(BookooEntity, SensorEntity):
 
 
 class BookooRestoreSensor(BookooEntity, RestoreSensor):
-    """Representation of an Bookoo sensor with restore capabilities."""
+    """Representation of a Bookoo sensor with restore capabilities."""
 
     entity_description: BookooSensorEntityDescription
     _restored_data: SensorExtraStoredData | None = None
@@ -132,14 +169,16 @@ class BookooRestoreSensor(BookooEntity, RestoreSensor):
                 self._restored_data.native_unit_of_measurement
             )
 
-        if self._scale.device_state is not None:
-            self._attr_native_value = self.entity_description.value_fn(self._scale)
+        value = self.entity_description.value_fn(self._scale)
+        if value is not None:
+            self._attr_native_value = value
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        if self._scale.device_state is not None:
-            self._attr_native_value = self.entity_description.value_fn(self._scale)
+        value = self.entity_description.value_fn(self._scale)
+        if value is not None:
+            self._attr_native_value = value
         self._async_write_ha_state()
 
     @property

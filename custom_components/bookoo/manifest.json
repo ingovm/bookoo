@@ -13,6 +13,15 @@
     },
     {
       "characteristic_uuid_command": "0000ff12-0000-1000-8000-00805f9b34fb"
+    },
+    {
+      "service_uuid_monitor": "00000fff-0000-1000-8000-00805f9b34fb"
+    },
+    {
+      "characteristic_uuid_extraction": "0000ff02-0000-1000-8000-00805f9b34fb"
+    },
+    {
+      "characteristic_uuid_monitor_command": "0000ff01-0000-1000-8000-00805f9b34fb"
     }
   ],
   "codeowners": ["@makerwolf"],

@@ -28,7 +28,7 @@ class BookooEntity(CoordinatorEntity[BookooCoordinator]):
         """Initialize the entity."""
         super().__init__(coordinator)
         self.entity_description = entity_description
-        self._scale = coordinator.scale
+        self._scale = coordinator.device
         formatted_mac = format_mac(self._scale.mac)
         self._attr_unique_id = f"{formatted_mac}_{entity_description.key}"
 

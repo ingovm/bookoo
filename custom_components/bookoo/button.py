@@ -1,10 +1,11 @@
-"""Button entities for Bookoo scales."""
+"""Button entities for Bookoo devices."""
 
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from typing import Any
 
 from aiobookoo.bookooscale import BookooScale
+from aiobookoo.bookoomonitor import BookooEspressoMonitor
 
 from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
 from homeassistant.core import HomeAssistant
@@ -18,36 +19,49 @@ PARALLEL_UPDATES = 0
 
 @dataclass(kw_only=True, frozen=True)
 class BookooButtonEntityDescription(ButtonEntityDescription):
-    """Description for bookoo button entities."""
+    """Description for Bookoo button entities."""
 
-    press_fn: Callable[[BookooScale], Coroutine[Any, Any, None]]
+    press_fn: Callable[[BookooScale | BookooEspressoMonitor], Coroutine[Any, Any, None]]
 
 
-BUTTONS: tuple[BookooButtonEntityDescription, ...] = (
+SCALE_BUTTONS: tuple[BookooButtonEntityDescription, ...] = (
     BookooButtonEntityDescription(
         key="tare",
         translation_key="tare",
-        press_fn=lambda scale: scale.tare(),
+        press_fn=lambda device: device.tare(),
     ),
     BookooButtonEntityDescription(
         key="reset_timer",
         translation_key="reset_timer",
-        press_fn=lambda scale: scale.reset_timer(),
+        press_fn=lambda device: device.reset_timer(),
     ),
     BookooButtonEntityDescription(
         key="start",
         translation_key="start",
-        press_fn=lambda scale: scale.start_timer(),
+        press_fn=lambda device: device.start_timer(),
     ),
     BookooButtonEntityDescription(
         key="stop",
         translation_key="stop",
-        press_fn=lambda scale: scale.stop_timer(),
+        press_fn=lambda device: device.stop_timer(),
     ),
     BookooButtonEntityDescription(
         key="tare_and_start",
         translation_key="tare_and_start",
-        press_fn=lambda scale: scale.tare_and_start_timer(),
+        press_fn=lambda device: device.tare_and_start_timer(),
+    ),
+)
+
+MONITOR_BUTTONS: tuple[BookooButtonEntityDescription, ...] = (
+    BookooButtonEntityDescription(
+        key="start_extraction",
+        translation_key="start_extraction",
+        press_fn=lambda device: device.start_extraction(),
+    ),
+    BookooButtonEntityDescription(
+        key="stop_extraction",
+        translation_key="stop_extraction",
+        press_fn=lambda device: device.stop_extraction(),
     ),
 )
 
@@ -60,13 +74,12 @@ async def async_setup_entry(
     """Set up button entities and services."""
 
     coordinator = entry.runtime_data
-    async_add_entities(
-        BookooButton(coordinator, description) for description in BUTTONS
-    )
+    buttons = SCALE_BUTTONS if coordinator.scale is not None else MONITOR_BUTTONS
+    async_add_entities(BookooButton(coordinator, description) for description in buttons)
 
 
 class BookooButton(BookooEntity, ButtonEntity):
-    """Representation of an Bookoo button."""
+    """Representation of a Bookoo button."""
 
     entity_description: BookooButtonEntityDescription
 

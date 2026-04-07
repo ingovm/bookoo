@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from aiobookoo.exceptions import BookooDeviceNotFound, BookooError, BookooUnknownDevice
-from aiobookoo.helpers import is_bookoo_scale
+from aiobookoo.helpers import is_bookoo_monitor, is_bookoo_scale
 import voluptuous as vol
 
 from homeassistant.components.bluetooth import (
@@ -21,9 +21,21 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
-from .const import CONF_IS_VALID_SCALE, DOMAIN
+from .const import CONF_DEVICE_TYPE, CONF_IS_VALID_SCALE, DEVICE_TYPE_MONITOR, DEVICE_TYPE_SCALE, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
+
+
+async def _detect_device_type(address: str) -> str:
+    """Return DEVICE_TYPE_SCALE or DEVICE_TYPE_MONITOR, or raise BookooUnknownDevice."""
+    try:
+        await is_bookoo_scale(address)
+        return DEVICE_TYPE_SCALE
+    except BookooUnknownDevice:
+        pass
+
+    await is_bookoo_monitor(address)  # raises BookooUnknownDevice if not a monitor either
+    return DEVICE_TYPE_MONITOR
 
 
 class BookooConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -44,11 +56,11 @@ class BookooConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             mac = user_input[CONF_ADDRESS]
             try:
-                is_valid_bookoo_scale = await is_bookoo_scale(mac)
+                device_type = await _detect_device_type(mac)
             except BookooDeviceNotFound:
                 errors["base"] = "device_not_found"
             except BookooError:
-                _LOGGER.exception("Error occurred while connecting to the scale")
+                _LOGGER.exception("Error occurred while connecting to the device")
                 errors["base"] = "unknown"
             except BookooUnknownDevice:
                 return self.async_abort(reason="unsupported_device")
@@ -57,12 +69,15 @@ class BookooConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._abort_if_unique_id_configured()
 
             if not errors:
+                data: dict[str, Any] = {
+                    CONF_ADDRESS: mac,
+                    CONF_DEVICE_TYPE: device_type,
+                }
+                if device_type == DEVICE_TYPE_SCALE:
+                    data[CONF_IS_VALID_SCALE] = True
                 return self.async_create_entry(
                     title=self._discovered_devices[mac],
-                    data={
-                        CONF_ADDRESS: mac,
-                        CONF_IS_VALID_SCALE: is_valid_bookoo_scale,
-                    },
+                    data=data,
                 )
 
         for device in async_discovered_service_info(self.hass):
@@ -106,7 +121,7 @@ class BookooConfigFlow(ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
 
         try:
-            self._discovered[CONF_IS_VALID_SCALE] = await is_bookoo_scale(
+            self._discovered[CONF_DEVICE_TYPE] = await _detect_device_type(
                 discovery_info.address
             )
         except BookooDeviceNotFound:
@@ -114,7 +129,7 @@ class BookooConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="device_not_found")
         except BookooError:
             _LOGGER.debug(
-                "Error occurred while connecting to the scale during discovery",
+                "Error occurred while connecting to the device during discovery",
                 exc_info=True,
             )
             return self.async_abort(reason="unknown")
@@ -130,12 +145,16 @@ class BookooConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle confirmation of Bluetooth discovery."""
 
         if user_input is not None:
+            device_type = self._discovered[CONF_DEVICE_TYPE]
+            data: dict[str, Any] = {
+                CONF_ADDRESS: self._discovered[CONF_ADDRESS],
+                CONF_DEVICE_TYPE: device_type,
+            }
+            if device_type == DEVICE_TYPE_SCALE:
+                data[CONF_IS_VALID_SCALE] = True
             return self.async_create_entry(
                 title=self._discovered[CONF_NAME],
-                data={
-                    CONF_ADDRESS: self._discovered[CONF_ADDRESS],
-                    CONF_IS_VALID_SCALE: self._discovered[CONF_IS_VALID_SCALE],
-                },
+                data=data,
             )
 
         self.context["title_placeholders"] = placeholders = {
