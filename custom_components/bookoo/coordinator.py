@@ -9,6 +9,7 @@ from aiobookoo.bookooscale import BookooScale
 from aiobookoo.bookoomonitor import BookooEspressoMonitor
 from aiobookoo.exceptions import BookooDeviceNotFound, BookooError
 
+from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ADDRESS
 from homeassistant.core import HomeAssistant
@@ -77,7 +78,22 @@ class BookooCoordinator(DataUpdateCoordinator[None]):
         if self._device.connected:
             return
 
+        # For the espresso monitor, don't auto-reconnect — connection is managed
+        # manually via the Start/Stop extraction buttons to preserve battery life.
+        if self.monitor is not None:
+            return
+
         # device is not connected, try to connect
+        # Refresh BLEDevice from HA's scanner cache so bleak_retry_connector can be used.
+        # Falls back to MAC string if the device hasn't been seen by the scanner yet.
+        ble_device = bluetooth.async_ble_device_from_address(
+            self.hass, self._device.mac, connectable=True
+        ) or bluetooth.async_ble_device_from_address(
+            self.hass, self._device.mac, connectable=False
+        )
+        if ble_device:
+            self._device.address_or_ble_device = ble_device
+
         try:
             await self._device.connect(setup_tasks=False)
         except (BookooDeviceNotFound, BookooError, TimeoutError) as ex:

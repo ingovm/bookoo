@@ -7,6 +7,7 @@ from typing import Any
 from aiobookoo.bookooscale import BookooScale
 from aiobookoo.bookoomonitor import BookooEspressoMonitor
 
+from homeassistant.components import bluetooth
 from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -83,6 +84,28 @@ class BookooButton(BookooEntity, ButtonEntity):
 
     entity_description: BookooButtonEntityDescription
 
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available.
+
+        Monitor buttons are always available so the user can start/stop extraction
+        regardless of connection state. Scale buttons require an active connection.
+        """
+        if isinstance(self._scale, BookooEspressoMonitor):
+            return True
+        return super().available
+
     async def async_press(self) -> None:
         """Handle the button press."""
+        # For the espresso monitor, refresh BLEDevice before connecting so that
+        # bleak_retry_connector is used and the connection is reliable.
+        if isinstance(self._scale, BookooEspressoMonitor) and not self._scale.connected:
+            ble_device = bluetooth.async_ble_device_from_address(
+                self.hass, self._scale.mac, connectable=True
+            ) or bluetooth.async_ble_device_from_address(
+                self.hass, self._scale.mac, connectable=False
+            )
+            if ble_device:
+                self._scale.address_or_ble_device = ble_device
+
         await self.entity_description.press_fn(self._scale)
