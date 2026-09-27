@@ -57,6 +57,11 @@ class BookooBinarySensor(BookooEntity, BinarySensorEntity):
     entity_description: BookooBinarySensorEntityDescription
 
     @property
+    def available(self) -> bool:
+        """Stay available while disconnected so the state reads off, not unavailable."""
+        return self.coordinator.last_update_success
+
+    @property
     def is_on(self) -> bool:
         """Return true if the binary sensor is on."""
         return self.entity_description.is_on_fn(self._scale)

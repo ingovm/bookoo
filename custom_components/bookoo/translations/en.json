@@ -28,7 +28,7 @@
   "entity": {
     "binary_sensor": {
       "connected": {
-        "name": "connected"
+        "name": "Connected"
       }
     },
     "button": {
@@ -46,6 +46,17 @@
       },
       "tare_and_start": {
         "name": "Tare and start timer"
+      },
+      "start_extraction": {
+        "name": "Start extraction"
+      },
+      "stop_extraction": {
+        "name": "Stop extraction"
+      }
+    },
+    "sensor": {
+      "pressure": {
+        "name": "Pressure"
       }
     }
   }

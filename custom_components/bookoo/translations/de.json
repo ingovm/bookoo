@@ -1,0 +1,63 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "abort": {
+      "already_configured": "Gerät ist bereits eingerichtet",
+      "no_devices_found": "Keine Geräte gefunden",
+      "unsupported_device": "Dieses Gerät wird nicht unterstützt."
+    },
+    "error": {
+      "device_not_found": "Gerät wurde nicht gefunden.",
+      "unknown": "Unerwarteter Fehler"
+    },
+    "step": {
+      "bluetooth_confirm": {
+        "description": "Möchtest du {name} einrichten?"
+      },
+      "user": {
+        "description": "Wähle ein Gerät zum Einrichten",
+        "data": {
+          "address": "Gerät"
+        },
+        "data_description": {
+          "address": "Bookoo-Gerät, das eingerichtet werden soll"
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "connected": {
+        "name": "Verbunden"
+      }
+    },
+    "button": {
+      "reset_timer": {
+        "name": "Timer zurücksetzen"
+      },
+      "start": {
+        "name": "Timer starten"
+      },
+      "stop": {
+        "name": "Timer stoppen"
+      },
+      "tare": {
+        "name": "Tara"
+      },
+      "tare_and_start": {
+        "name": "Tara und Timer starten"
+      },
+      "start_extraction": {
+        "name": "Extraktion starten"
+      },
+      "stop_extraction": {
+        "name": "Extraktion stoppen"
+      }
+    },
+    "sensor": {
+      "pressure": {
+        "name": "Druck"
+      }
+    }
+  }
+}
