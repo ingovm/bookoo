@@ -84,15 +84,16 @@ class BookooCoordinator(DataUpdateCoordinator[None]):
             return
 
         # device is not connected, try to connect
-        # Refresh BLEDevice from HA's scanner cache so bleak_retry_connector can be used.
-        # Falls back to MAC string if the device hasn't been seen by the scanner yet.
+        # Refresh BLEDevice from HA's scanner cache so bleak_retry_connector is used.
+        # If no connectable adapter currently sees the device, it is off or out of
+        # range: skip the attempt instead of falling back to a plain BleakClient.
         ble_device = bluetooth.async_ble_device_from_address(
             self.hass, self._device.mac, connectable=True
-        ) or bluetooth.async_ble_device_from_address(
-            self.hass, self._device.mac, connectable=False
         )
-        if ble_device:
-            self._device.address_or_ble_device = ble_device
+        if ble_device is None:
+            _LOGGER.debug("Device %s not seen by any connectable adapter", self._device.mac)
+            return
+        self._device.address_or_ble_device = ble_device
 
         try:
             await self._device.connect(setup_tasks=False)
