@@ -31,6 +31,6 @@
   "integration_type": "device",
   "iot_class": "local_push",
   "loggers": ["aiobookoo"],
-  "requirements": ["aiobookoo @ git+https://github.com/ingovm/aiobookoo.git@30f6f4eeeb3a45d3699428d7eb8a7a4c5eacf94e"],
-  "version": "1.0.1"
+  "requirements": ["aiobookoo @ git+https://github.com/ingovm/aiobookoo.git@760992871531aa15132bbd167040776693cddc86"],
+  "version": "1.1.0"
 }
