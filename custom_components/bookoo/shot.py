@@ -109,11 +109,7 @@ class ShotManager:
     def _async_device_update(self) -> None:
         """Handle connect/disconnect transitions of any device."""
         scale_connected = self._connected_scale() is not None
-        monitor_connected = self._connected_monitor() is not None
-
-        if monitor_connected and not self._monitor_connected:
-            self._monitor_active_at = time.monotonic()
-        self._monitor_connected = monitor_connected
+        monitor_connected = self._track_monitor_connection()
 
         if scale_connected != self._scale_connected:
             self._scale_connected = scale_connected
@@ -131,6 +127,14 @@ class ShotManager:
             self._unsub_tick()
             self._unsub_tick = None
             self._async_sample()  # lets a running shot finish with no data
+
+    def _track_monitor_connection(self) -> bool:
+        """Restart the idle clock whenever the monitor (re)connects."""
+        monitor_connected = self._connected_monitor() is not None
+        if monitor_connected and not self._monitor_connected:
+            self._monitor_active_at = time.monotonic()
+        self._monitor_connected = monitor_connected
+        return monitor_connected
 
     # -- sampling ----------------------------------------------------------------
 
@@ -182,6 +186,7 @@ class ShotManager:
                 return
             if self._connected_monitor() is not None or not self._monitors:
                 return
+            _LOGGER.debug("Auto connecting espresso monitor (attempt %s)", attempt + 1)
             try:
                 await self._monitors[0].async_start_monitor()
             except (HomeAssistantError, BookooError, TimeoutError) as ex:
@@ -218,7 +223,8 @@ class ShotManager:
 
     @callback
     def _async_check_monitor_idle(self) -> None:
-        if self._connected_monitor() is None or self.detector.recording:
+        # The monitor may have connected without its coordinator notifying yet.
+        if not self._track_monitor_connection() or self.detector.recording:
             return
         if time.monotonic() - self._monitor_active_at > MONITOR_IDLE_TIMEOUT:
             self._monitor_active_at = time.monotonic()  # don't fire again every tick

@@ -88,6 +88,8 @@ class BookooCoordinator(DataUpdateCoordinator[None]):
                 )
             monitor.address_or_ble_device = ble_device
         await monitor.start_extraction()
+        # Publish the new connection state right away instead of waiting for data.
+        self.async_update_listeners()
 
     async def async_stop_monitor(self) -> None:
         """Stop streaming and disconnect the espresso monitor to save battery."""
