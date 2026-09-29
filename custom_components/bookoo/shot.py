@@ -30,7 +30,7 @@ SHOTS_KEPT = 10
 
 MONITOR_CONNECT_ATTEMPTS = 5
 MONITOR_CONNECT_RETRY = 15  # s
-MONITOR_STOP_GRACE = 60  # s after the scale disconnected
+MONITOR_STOP_GRACE = 20  # s after the scale disconnected
 MONITOR_IDLE_TIMEOUT = 600  # s without pressure while connected
 
 
