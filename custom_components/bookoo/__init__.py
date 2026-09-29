@@ -4,11 +4,13 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
 from .coordinator import BookooConfigEntry, BookooCoordinator
+from .shot import async_get_manager
 
 PLATFORMS = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.SENSOR,
+    Platform.SWITCH,
 ]
 
 
@@ -19,6 +21,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: BookooConfigEntry) -> bo
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
+
+    manager = await async_get_manager(hass)
+    entry.async_on_unload(manager.async_register(coordinator))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

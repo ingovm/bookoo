@@ -2,6 +2,8 @@
 
 from collections.abc import Callable  # noqa: I001
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 from aiobookoo.bookooscale import BookooDeviceState, BookooScale
 from aiobookoo.bookoomonitor import BookooEspressoMonitor
@@ -19,7 +21,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import BookooConfigEntry
-from .entity import BookooEntity
+from .entity import BookooEntity, BookooShotEntity
+from .shot import DATA_MANAGER
 
 # Coordinator is used to centralize the data updates
 PARALLEL_UPDATES = 0
@@ -98,6 +101,16 @@ MONITOR_RESTORE_SENSORS: tuple[BookooSensorEntityDescription, ...] = (
     ),
 )
 
+# Last, second-to-last and third-to-last shot.
+SHOT_SENSORS: tuple[SensorEntityDescription, ...] = tuple(
+    SensorEntityDescription(
+        key=f"shot_{number}",
+        translation_key=f"shot_{number}",
+        device_class=SensorDeviceClass.TIMESTAMP,
+    )
+    for number in (1, 2, 3)
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -116,6 +129,11 @@ async def async_setup_entry(
         entities.extend(
             BookooRestoreSensor(coordinator, description)
             for description in SCALE_RESTORE_SENSORS
+        )
+        manager = hass.data[DATA_MANAGER]
+        entities.extend(
+            BookooShotSensor(coordinator, manager, description, index)
+            for index, description in enumerate(SHOT_SENSORS)
         )
     else:
         entities.extend(
@@ -185,3 +203,34 @@ class BookooRestoreSensor(BookooEntity, RestoreSensor):
     def available(self) -> bool:
         """Return True if entity is available."""
         return super().available or self._restored_data is not None
+
+
+class BookooShotSensor(BookooShotEntity, SensorEntity):
+    """A recorded shot: state is its start time, the profile is in the attributes."""
+
+    # The profile is only needed by the dashboard; keep it out of the recorder.
+    _unrecorded_attributes = frozenset({"samples"})
+
+    def __init__(self, coordinator, manager, description, index: int) -> None:
+        """Initialize the shot sensor."""
+        super().__init__(coordinator, manager, description)
+        self._index = index
+
+    @property
+    def _shot(self) -> dict[str, Any] | None:
+        shots = self._manager.shots
+        return shots[self._index] if self._index < len(shots) else None
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return the start of the shot."""
+        if (shot := self._shot) is None:
+            return None
+        return datetime.fromtimestamp(shot["start"], tz=UTC)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return shot key figures and the sampled profile."""
+        if (shot := self._shot) is None:
+            return None
+        return {key: shot[key] for key in ("duration", "yield_g", "peak_bar", "source", "samples")}

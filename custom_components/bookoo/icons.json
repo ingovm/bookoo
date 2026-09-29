@@ -7,6 +7,13 @@
           "on": "mdi:timer-play",
           "off": "mdi:timer-off"
         }
+      },
+      "shot_running": {
+        "default": "mdi:coffee",
+        "state": {
+          "on": "mdi:coffee-maker",
+          "off": "mdi:coffee-outline"
+        }
       }
     },
     "button": {
@@ -21,6 +28,25 @@
       },
       "stop": {
         "default": "mdi:timer-stop"
+      }
+    },
+    "sensor": {
+      "shot_1": {
+        "default": "mdi:chart-bell-curve-cumulative"
+      },
+      "shot_2": {
+        "default": "mdi:chart-bell-curve-cumulative"
+      },
+      "shot_3": {
+        "default": "mdi:chart-bell-curve-cumulative"
+      }
+    },
+    "switch": {
+      "auto_monitor": {
+        "default": "mdi:link-variant",
+        "state": {
+          "off": "mdi:link-variant-off"
+        }
       }
     }
   }

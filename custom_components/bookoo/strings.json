@@ -29,6 +29,9 @@
     "binary_sensor": {
       "connected": {
         "name": "Connected"
+      },
+      "shot_running": {
+        "name": "Shot running"
       }
     },
     "button": {
@@ -57,6 +60,20 @@
     "sensor": {
       "pressure": {
         "name": "Pressure"
+      },
+      "shot_1": {
+        "name": "Last shot"
+      },
+      "shot_2": {
+        "name": "Previous shot"
+      },
+      "shot_3": {
+        "name": "Third-last shot"
+      }
+    },
+    "switch": {
+      "auto_monitor": {
+        "name": "Connect with scale"
       }
     }
   }

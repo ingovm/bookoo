@@ -13,6 +13,7 @@ from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ADDRESS
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import CONF_DEVICE_TYPE, CONF_IS_VALID_SCALE, DEVICE_TYPE_MONITOR
@@ -70,6 +71,28 @@ class BookooCoordinator(DataUpdateCoordinator[None]):
     def monitor(self) -> BookooEspressoMonitor | None:
         """Return the monitor object, or None if the device is not a monitor."""
         return self._device if isinstance(self._device, BookooEspressoMonitor) else None
+
+    async def async_start_monitor(self) -> None:
+        """Connect to the espresso monitor and start streaming pressure."""
+        monitor = self.monitor
+        if monitor is None:
+            return
+        if not monitor.connected:
+            # Refresh BLEDevice before connecting so bleak_retry_connector is used.
+            ble_device = bluetooth.async_ble_device_from_address(
+                self.hass, monitor.mac, connectable=True
+            )
+            if ble_device is None:
+                raise HomeAssistantError(
+                    f"{monitor.name} is not reachable - is it switched on and in range?"
+                )
+            monitor.address_or_ble_device = ble_device
+        await monitor.start_extraction()
+
+    async def async_stop_monitor(self) -> None:
+        """Stop streaming and disconnect the espresso monitor to save battery."""
+        if self.monitor is not None:
+            await self.monitor.stop_extraction()
 
     async def _async_update_data(self) -> None:
         """Fetch data."""

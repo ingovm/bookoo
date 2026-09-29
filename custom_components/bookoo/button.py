@@ -7,10 +7,8 @@ from typing import Any
 from aiobookoo.bookooscale import BookooScale
 from aiobookoo.bookoomonitor import BookooEspressoMonitor
 
-from homeassistant.components import bluetooth
 from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import BookooConfigEntry
@@ -98,16 +96,9 @@ class BookooButton(BookooEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         """Handle the button press."""
-        # For the espresso monitor, refresh BLEDevice before connecting so that
-        # bleak_retry_connector is used and the connection is reliable.
-        if isinstance(self._scale, BookooEspressoMonitor) and not self._scale.connected:
-            ble_device = bluetooth.async_ble_device_from_address(
-                self.hass, self._scale.mac, connectable=True
-            )
-            if ble_device is None:
-                raise HomeAssistantError(
-                    f"{self._scale.name} is not reachable - is it switched on and in range?"
-                )
-            self._scale.address_or_ble_device = ble_device
-
-        await self.entity_description.press_fn(self._scale)
+        if self.entity_description.key == "start_extraction":
+            await self.coordinator.async_start_monitor()
+        elif self.entity_description.key == "stop_extraction":
+            await self.coordinator.async_stop_monitor()
+        else:
+            await self.entity_description.press_fn(self._scale)

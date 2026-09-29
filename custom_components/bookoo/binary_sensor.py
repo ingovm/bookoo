@@ -15,7 +15,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import BookooConfigEntry
-from .entity import BookooEntity
+from .entity import BookooEntity, BookooShotEntity
+from .shot import DATA_MANAGER
 
 # Coordinator is used to centralize the data updates
 PARALLEL_UPDATES = 0
@@ -37,6 +38,12 @@ BINARY_SENSORS: tuple[BookooBinarySensorEntityDescription, ...] = (
     ),
 )
 
+SHOT_RUNNING_SENSOR = BinarySensorEntityDescription(
+    key="shot_running",
+    translation_key="shot_running",
+    device_class=BinarySensorDeviceClass.RUNNING,
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -46,9 +53,16 @@ async def async_setup_entry(
     """Set up binary sensors."""
 
     coordinator = entry.runtime_data
-    async_add_entities(
+    entities: list[BinarySensorEntity] = [
         BookooBinarySensor(coordinator, description) for description in BINARY_SENSORS
-    )
+    ]
+    if coordinator.scale is not None:
+        entities.append(
+            BookooShotRunningBinarySensor(
+                coordinator, hass.data[DATA_MANAGER], SHOT_RUNNING_SENSOR
+            )
+        )
+    async_add_entities(entities)
 
 
 class BookooBinarySensor(BookooEntity, BinarySensorEntity):
@@ -65,3 +79,12 @@ class BookooBinarySensor(BookooEntity, BinarySensorEntity):
     def is_on(self) -> bool:
         """Return true if the binary sensor is on."""
         return self.entity_description.is_on_fn(self._scale)
+
+
+class BookooShotRunningBinarySensor(BookooShotEntity, BinarySensorEntity):
+    """On while a shot is being recorded."""
+
+    @property
+    def is_on(self) -> bool:
+        """Return true while a shot is recorded."""
+        return self._manager.detector.recording

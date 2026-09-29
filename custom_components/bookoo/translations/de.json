@@ -29,6 +29,9 @@
     "binary_sensor": {
       "connected": {
         "name": "Verbunden"
+      },
+      "shot_running": {
+        "name": "Shot läuft"
       }
     },
     "button": {
@@ -57,6 +60,20 @@
     "sensor": {
       "pressure": {
         "name": "Druck"
+      },
+      "shot_1": {
+        "name": "Letzter Shot"
+      },
+      "shot_2": {
+        "name": "Vorletzter Shot"
+      },
+      "shot_3": {
+        "name": "Drittletzter Shot"
+      }
+    },
+    "switch": {
+      "auto_monitor": {
+        "name": "Mit Waage verbinden"
       }
     }
   }
