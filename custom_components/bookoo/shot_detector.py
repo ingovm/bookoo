@@ -23,7 +23,7 @@ PRESSURE_END_MAX_FLOW = 0.3  # g/s, scale must agree the shot is over
 PREINFUSION_PAUSE_MAX = 25.0  # s of low pressure tolerated before main phase
 PREINFUSION_MAX = 60.0  # s without reaching main phase -> discard
 PRESSURE_MIN_PEAK = 3.0  # bar
-PREBUFFER = 3.0  # s of samples kept while idle
+PREBUFFER = 15.0  # s of samples kept while idle (covers a slow monitor connect)
 
 # --- weight mode (no monitor) ------------------------------------------------
 WEIGHT_TARED = 2.0  # g, |weight| below this counts as tared
@@ -132,6 +132,7 @@ class ShotDetector:
         self._rec: _Recording | None = None
         self._last_timer: float | None = None
         self._last_tared: float | None = None
+        self._last_empty: float | None = None
         self._rise_start: float | None = None
 
     @property
@@ -184,6 +185,10 @@ class ShotDetector:
         if t - rec.t0 > SHOT_MAX_DURATION:
             self._rec = None
             return None
+        if rec.source == SOURCE_WEIGHT and sample.pressure is not None:
+            # Monitor connected mid-shot: pressure is the better end signal.
+            rec.source = SOURCE_PRESSURE
+            rec.low_since = None
         if rec.source == SOURCE_PRESSURE:
             return self._feed_pressure(rec, sample)
         return self._feed_weight(rec, sample)
@@ -198,10 +203,11 @@ class ShotDetector:
         if s.pressure is not None:
             self._rise_start = None
             if s.pressure >= PRESSURE_START:
-                onset = len(self._prebuffer) - 1
-                while onset > 0 and (self._prebuffer[onset - 1].pressure or 0) > PRESSURE_ONSET:
+                buf = list(self._prebuffer)
+                onset = len(buf) - 1
+                while onset > 0 and (buf[onset - 1].pressure or 0) > PRESSURE_ONSET:
                     onset -= 1
-                self._start(SOURCE_PRESSURE, list(self._prebuffer)[onset:])
+                self._start(SOURCE_PRESSURE, buf[self._late_monitor_onset(buf, onset):])
             return None
 
         if s.weight is None:
@@ -209,6 +215,8 @@ class ShotDetector:
             return None
         if abs(s.weight) < WEIGHT_TARED:
             self._last_tared = s.t
+        if abs(s.weight) < WEIGHT_RISE_MIN:
+            self._last_empty = s.t
 
         if timer_started:
             self._start(SOURCE_WEIGHT, [s])
@@ -231,10 +239,31 @@ class ShotDetector:
                 return None
             self._rise_start = s.t
         if s.t - self._rise_start >= WEIGHT_RISE_HOLD:
-            # Backdate to the last tared sample so the curve starts near 0 g.
-            t0 = self._last_tared if self._last_tared is not None else self._rise_start
+            # Backdate to where the weight left zero so the curve starts at 0 g.
+            t0 = self._last_empty if self._last_empty is not None else self._rise_start
             self._start(SOURCE_WEIGHT, [x for x in self._prebuffer if x.t >= t0])
         return None
+
+    @staticmethod
+    def _late_monitor_onset(buf: list[_Sample], onset: int) -> int:
+        """Backdate a shot the monitor only joined after it had begun.
+
+        If the monitor connected while coffee was already flowing (pressure
+        unknown before, weight rising since it last read empty), the shot
+        really started where the weight left zero.
+        """
+        if onset == 0 or buf[onset - 1].pressure is not None:
+            return onset
+        latest = buf[-1].weight
+        if latest is None or latest < WEIGHT_RISE_MIN:
+            return onset
+        for i in range(onset - 1, -1, -1):
+            w = buf[i].weight
+            if w is None:
+                break
+            if abs(w) < WEIGHT_RISE_MIN:
+                return i
+        return onset
 
     def _start(self, source: str, samples: list[_Sample]) -> None:
         self._rec = _Recording(source=source, t0=samples[0].t, samples=samples)

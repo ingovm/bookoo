@@ -169,3 +169,63 @@ def test_scale_timer_starts_shot():
         ]
     )
     assert len(shots) == 1
+
+
+def test_monitor_connecting_mid_shot_is_backdated_to_tare():
+    # The monitor needs a while to connect; the shot is already running.
+    shots = run(
+        [
+            (3, const(0.0), const(None)),
+            (1.6, ramp(0, 1.4, 1.6), const(None)),  # flowing, rise hold not reached
+            (25, ramp(1.4, 38, 25), const(10.0)),  # monitor connected at 10 bar
+            (8, const(38.0), const(0.05)),
+        ]
+    )
+    assert len(shots) == 1
+    shot = shots[0]
+    assert shot["source"] == "pressure"
+    assert shot["samples"]["w"][0] < 2.0  # starts at the tared cup, not mid-shot
+    assert shot["samples"]["p"][0] is None
+    assert shot["duration"] >= 26
+
+
+def test_weight_shot_switches_to_pressure_when_monitor_connects():
+    shots = run(
+        [
+            (3, const(0.0), const(None)),
+            (8, ramp(0, 8, 8), const(None)),  # weight mode already recording
+            (20, ramp(8, 38, 20), const(9.0)),
+            (8, const(38.0), const(0.05)),
+        ]
+    )
+    assert len(shots) == 1
+    assert shots[0]["source"] == "pressure"
+    assert shots[0]["peak_bar"] == 9.0
+    assert shots[0]["duration"] >= 27
+
+
+def test_monitor_connecting_late_with_several_grams_in_cup():
+    shots = run(
+        [
+            (3, const(0.0), const(None)),
+            (6, ramp(0, 6, 6), const(None)),  # weight mode picks this up first
+            (20, ramp(6, 38, 20), const(9.5)),
+            (8, const(38.0), const(0.05)),
+        ]
+    )
+    assert len(shots) == 1
+    assert shots[0]["samples"]["w"][0] < 0.5
+    assert shots[0]["duration"] >= 25
+
+
+def test_late_monitor_without_prior_tare_is_not_backdated():
+    # Cup sat on an untared scale: no evidence when the shot began.
+    shots = run(
+        [
+            (5, const(120.0), const(None)),
+            (25, ramp(120, 156, 25), const(9.0)),
+            (8, const(156.0), const(0.05)),
+        ]
+    )
+    assert len(shots) == 1
+    assert shots[0]["samples"]["p"][0] == 9.0
